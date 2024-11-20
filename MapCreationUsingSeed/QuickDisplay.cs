@@ -10,8 +10,9 @@ public class QuickDisplay
     public Vector2 gridSize;
     public int[,] grid;
     private List<Rectangle> lines = new List<Rectangle>();
-    private List<Rectangle> pixels = new List<Rectangle>();
+    private List<(int, Rectangle)> pixels = new List<(int, Rectangle)>();
     public int cellSize;
+    public bool displayOn = true;
     public QuickDisplay(int X, int Y, int cellSize, int[,] grid,Color colour)
     {
         QuickDisplays.Add(this);
@@ -30,11 +31,12 @@ public class QuickDisplay
 
     public void DrawDisplay()
     {
-        Raylib.DrawRectangleRec(display, colour);
-        drawGridLines(Color.Black);
-        drawPixels();
-
-
+        if (displayOn)
+        {
+            Raylib.DrawRectangleRec(display, colour);
+            drawGridLines(Color.Black);
+            drawPixels();
+        }
     }
     private void createGridLines(int lineThickness = 2)
     {
@@ -55,7 +57,7 @@ public class QuickDisplay
     {
         foreach (var pixel in pixels)
         {
-            Raylib.DrawRectangleRec(pixel,Color.Black);
+            Raylib.DrawRectangleRec(pixel.Item2,PlaneObject.GenerateColor(pixel.Item1));
         }
     }
 
@@ -70,7 +72,7 @@ public class QuickDisplay
                     Rectangle rect = new Rectangle(x * cellSize + display.X, y * cellSize + display.Y, cellSize,
                         cellSize);
                     
-                    pixels.Add(rect);
+                    pixels.Add((grid[y,x],rect));
                 }
             }
         }
