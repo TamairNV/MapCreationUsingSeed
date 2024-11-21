@@ -26,7 +26,7 @@ public class MovablePlane
     }
 
     private Vector2 mousePressPosition = Vector2.Zero;
-    private bool isBeingPressed;
+ 
     private Vector2 differance;
     public void HandlePlaneMovement()
     {

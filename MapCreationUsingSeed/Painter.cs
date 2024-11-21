@@ -23,6 +23,8 @@ public class Painter
             yPos += 75;
             i++;
         }
+
+        brush = structures[0];
     }
 
 

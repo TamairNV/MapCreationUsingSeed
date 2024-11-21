@@ -10,6 +10,9 @@ public class PlaneObject
     private int cellSize;
     private Vector2 gridSize;
     private Dictionary<Vector2, List<Vector2>> directionDict;
+    public static int globalExpandCount = 0;
+    public int expandCound = 0;
+    private List<Rectangle> tunnels = new List<Rectangle>();
     public PlaneObject(int[,] grid, Vector2 position,MovablePlane plane)
     {
         ObjectGrid = grid;
@@ -22,8 +25,15 @@ public class PlaneObject
 
     }
 
-    public void RunExpand(Hasher hash, List<int[,]> structures)
+    public void RunExpand(Hasher hash, List<int[,]> structures,int count = 0,int nodeExpandLength = 25)
     {
+        if (count > nodeExpandLength)
+        {
+            return;
+        }
+        
+        globalExpandCount += 1;
+        count += 1;
         int index8 = 0; 
         for (int x = 0; x < gridSize.X; x++)
         {
@@ -34,7 +44,7 @@ public class PlaneObject
                 {
                     int seed = hash.GetRandomFromCoords(new Vector2(Position.X + x * cellSize, Position.Y + y *cellSize ));
                     Random ran = new Random(seed);
-                    if (ran.Next(0, 1) != 1)
+                    if (ran.Next(0, 10) != 1 )
                     {
 
                         int[,] strut = structures[ran.Next(0, structures.Count)];
@@ -46,11 +56,20 @@ public class PlaneObject
 
                         Vector2 centerOffset = new Vector2(structWidth / 2, structHeight / 2); // (middleX, middleY)
 
-                       
+                        Vector2 directionOffset;
 
-                        Vector2 directionOffset = directionDict[new Vector2(y, x)][index8]; 
+                        try
+                        {
+                            directionOffset = directionDict[new Vector2(y, x)][index8]; 
+                        }
+                        catch
+                        {
+                            index8 = 0;
+                            directionOffset = directionDict[new Vector2(y, x)][index8]; 
+                            
+                        }
+
                         index8++;
-
                         directionOffset = new Vector2(directionOffset.Y, directionOffset.X);
 
 
@@ -62,13 +81,78 @@ public class PlaneObject
                             placementPosition.Y - centerOffset.Y * cellSize  // Offset based on the height of the structure
                         );
 
+                        adjustedPosition += directionOffset * 10 * cellSize;
+                        Rectangle arrayBounds2 =new Rectangle(adjustedPosition.X, adjustedPosition.Y, structWidth*cellSize,
+                            structHeight*cellSize);
+                        foreach (var obj in Plane.Objects)
+                        { 
+                            Rectangle arrayBounds1 =new Rectangle(obj.Position.X, obj.Position.Y, obj.ObjectGrid.GetLength(0)*cellSize,
+                                obj.ObjectGrid.GetLength(1)*cellSize);
+                            if (Raylib.CheckCollisionRecs(arrayBounds1, arrayBounds2))
+                            {
+                                return;
+                            }
+                        }
 
-                        PlaneObject newObj = new PlaneObject(strut, adjustedPosition + directionOffset * 120, Plane);
+                        Rectangle tunnel = DrawBackWardsRect(placementPosition,
+                            new Vector2(9 * cellSize, 9 * cellSize) * directionOffset +
+                            new Vector2(cellSize, cellSize));
 
+                        
+                        tunnels.Add(tunnel);
+                        PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
+                        
+                        newObj.RunExpand(hash,structures,count,nodeExpandLength);
                     }
                 }
             }
         }
+    }
+    public static Rectangle DrawBackWardsRect(Vector2 position, Vector2 size)
+    {
+        Vector2 newPosition = new Vector2();
+        Vector2 newSize = new Vector2();
+        if (size.X < 0)
+        {
+            newSize.X = Math.Abs(size.X);
+            newPosition.X = position.X - newSize.X;
+        }
+        else
+        {
+            newSize.X = size.X;
+            newPosition.X = position.X;
+        }
+        if (size.Y < 0)
+        {
+            newSize.Y = Math.Abs(size.Y);
+            newPosition.Y = position.Y - newSize.Y;
+        }
+        else
+        {
+            newSize.Y = size.Y;
+            newPosition.Y = position.Y;
+        }
+
+        return new Rectangle(newPosition, newSize);
+    }
+
+    private List<PlaneObject> GetClipedArray(int amount)
+    {
+        int i = 0;
+        List<PlaneObject> clippedList = new List<PlaneObject>();
+        foreach (var obj in Plane.Objects.ToArray().Reverse())
+        {
+
+            clippedList.Add(obj);
+            if (i > amount)
+            {
+                return clippedList;
+            }
+            i++;
+            
+        }
+
+        return clippedList;
     }
 
     private Dictionary<Vector2, List<Vector2>> getDoorDirections()
@@ -130,6 +214,11 @@ public class PlaneObject
     {
         if (ShouldObjectBeDrawn())
         {
+            foreach (var tunnel in tunnels)
+            {
+                Rectangle temp = new Rectangle(tunnel.Position - Plane.currentPostion, tunnel.Size);
+                Raylib.DrawRectangleRec(temp,Color.Black);
+            }
             for (int x = 0; x < gridSize.X; x++)
             {
                 for (int y = 0; y < gridSize.Y; y++)
