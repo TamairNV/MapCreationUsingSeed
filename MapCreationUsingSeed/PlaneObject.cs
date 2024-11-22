@@ -25,33 +25,34 @@ public class PlaneObject
 
     }
 
-    public void RunExpand(Hasher hash, List<int[,]> structures,int count = 0,int nodeExpandLength = 25)
+    public void RunExpand(Hasher hash, List<int[,]> structures, int count = 0, int nodeExpandLength = 25)
     {
         if (count > nodeExpandLength)
         {
             return;
         }
-        
+
         globalExpandCount += 1;
         count += 1;
-        int index8 = 0; 
+        int index8 = 0;
         for (int x = 0; x < gridSize.X; x++)
         {
             for (int y = 0; y < gridSize.Y; y++)
             {
-                
+
                 if (ObjectGrid[y, x] == 8)
                 {
-                    int seed = hash.GetRandomFromCoords(new Vector2(Position.X + x * cellSize, Position.Y + y *cellSize ));
+                    int seed = hash.GetRandomFromCoords(new Vector2(Position.X + x * cellSize,
+                        Position.Y + y * cellSize));
                     Random ran = new Random(seed);
-                    if (ran.Next(0, 10) != 1 )
+                    if (ran.Next(0, 10) != 1 || true)
                     {
 
                         int[,] strut = structures[ran.Next(0, structures.Count)];
 
 
-                        int structWidth = strut.GetLength(1); 
-                        int structHeight = strut.GetLength(0); 
+                        int structWidth = strut.GetLength(1);
+                        int structHeight = strut.GetLength(0);
 
 
                         Vector2 centerOffset = new Vector2(structWidth / 2, structHeight / 2); // (middleX, middleY)
@@ -60,34 +61,38 @@ public class PlaneObject
 
                         try
                         {
-                            directionOffset = directionDict[new Vector2(y, x)][index8]; 
+                            directionOffset = directionDict[new Vector2(y, x)][index8];
                         }
                         catch
                         {
                             index8 = 0;
-                            directionOffset = directionDict[new Vector2(y, x)][index8]; 
-                            
+                            directionOffset = directionDict[new Vector2(y, x)][index8];
+
                         }
 
                         index8++;
-                        directionOffset = new Vector2(directionOffset.Y, directionOffset.X);
+                        directionOffset = new Vector2(-directionOffset.Y, -directionOffset.X);
 
 
                         Vector2 placementPosition = new Vector2(Position.X + x * cellSize, Position.Y + y * cellSize);
 
 
                         Vector2 adjustedPosition = new Vector2(
-                            placementPosition.X - centerOffset.X * cellSize, // Offset based on the width of the structure
-                            placementPosition.Y - centerOffset.Y * cellSize  // Offset based on the height of the structure
+                            placementPosition.X -
+                            centerOffset.X * cellSize, // Offset based on the width of the structure
+                            placementPosition.Y -
+                            centerOffset.Y * cellSize // Offset based on the height of the structure
                         );
 
-                        adjustedPosition += directionOffset * 10 * cellSize;
-                        Rectangle arrayBounds2 =new Rectangle(adjustedPosition.X, adjustedPosition.Y, structWidth*cellSize,
-                            structHeight*cellSize);
+                        adjustedPosition += directionOffset * 6 * cellSize;
+                        Rectangle arrayBounds2 = new Rectangle(adjustedPosition.X, adjustedPosition.Y,
+                            structWidth * cellSize,
+                            structHeight * cellSize);
                         foreach (var obj in Plane.Objects)
-                        { 
-                            Rectangle arrayBounds1 =new Rectangle(obj.Position.X, obj.Position.Y, obj.ObjectGrid.GetLength(0)*cellSize,
-                                obj.ObjectGrid.GetLength(1)*cellSize);
+                        {
+                            Rectangle arrayBounds1 = new Rectangle(obj.Position.X, obj.Position.Y,
+                                obj.ObjectGrid.GetLength(0) * cellSize,
+                                obj.ObjectGrid.GetLength(1) * cellSize);
                             if (Raylib.CheckCollisionRecs(arrayBounds1, arrayBounds2))
                             {
                                 return;
@@ -95,19 +100,98 @@ public class PlaneObject
                         }
 
                         Rectangle tunnel = DrawBackWardsRect(placementPosition,
-                            new Vector2(9 * cellSize, 9 * cellSize) * directionOffset +
+                            new Vector2(5 * cellSize, 5 * cellSize) * directionOffset +
                             new Vector2(cellSize, cellSize));
 
-                        
+
                         tunnels.Add(tunnel);
-                        PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
                         
-                        newObj.RunExpand(hash,structures,count,nodeExpandLength);
+                        PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
+                        Vector2 newDir = newObj.directionDict.First().Value[0];
+                        newDir = new Vector2(-newDir.Y, -newDir.X);
+                        if (newDir != new Vector2(-directionOffset.X,-directionOffset.Y))
+                        {
+                            if (newDir.X == -directionOffset.Y && newDir.Y == directionOffset.X)
+                            {
+                                newObj.ObjectGrid = RotateGrid90(newObj.ObjectGrid);
+                            }
+                            else if (newDir.X == directionOffset.Y && newDir.Y == -directionOffset.X)
+                            {
+                                newObj.ObjectGrid = RotateGridNegative90(newObj.ObjectGrid);
+                            }
+                            else if (newDir == directionOffset)
+                            {
+                                newObj.ObjectGrid = RotateGrid90(RotateGrid90(newObj.ObjectGrid)); // Rotate twice for 180 degrees
+                            }
+                            
+                            
+                            newObj.directionDict = newObj.getDoorDirections();
+                        }
+
+                        if (newObj.directionDict.Keys.Count != 1)
+                        {
+                            newObj.RunExpand(hash, structures, count, nodeExpandLength);
+                        }
+                        
+                       
                     }
+                    
                 }
             }
         }
     }
+
+    public static void PrintGrid(int[,] grid)
+    {
+        int rows = grid.GetLength(0);
+        int cols = grid.GetLength(1);
+
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                Console.Write(grid[i, j] + "\t"); // Print each element with a tab space
+            }
+            Console.WriteLine(); // Move to the next line after each row
+        }
+        Console.WriteLine("-------------------------");
+    }
+
+
+    private int[,] RotateGrid90(int[,] grid)
+    {
+        int originalRows = grid.GetLength(0);
+        int originalCols = grid.GetLength(1);
+        int[,] newGrid = new int[originalCols, originalRows];
+
+        for (int x = 0; x < originalCols; x++)
+        {
+            for (int y = 0; y < originalRows; y++)
+            {
+                newGrid[x, y] = grid[originalRows - 1 - y, x];
+            }
+        }
+
+        return newGrid;
+    }
+    private int[,] RotateGridNegative90(int[,] grid)
+    {
+        int originalRows = grid.GetLength(0);
+        int originalCols = grid.GetLength(1);
+        int[,] newGrid = new int[originalCols, originalRows];
+
+        for (int x = 0; x < originalCols; x++)
+        {
+            for (int y = 0; y < originalRows; y++)
+            {
+                newGrid[x, y] = grid[y, originalCols - 1 - x];
+            }
+        }
+
+        return newGrid;
+    }
+
+
     public static Rectangle DrawBackWardsRect(Vector2 position, Vector2 size)
     {
         Vector2 newPosition = new Vector2();
