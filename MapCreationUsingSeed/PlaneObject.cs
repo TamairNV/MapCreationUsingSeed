@@ -2,6 +2,7 @@ using System.Numerics;
 
 namespace MapCreationUsingSeed;
 using Raylib_cs;
+
 public class PlaneObject
 {
     public int[,] ObjectGrid;
@@ -10,7 +11,7 @@ public class PlaneObject
     private int cellSize;
     private Vector2 gridSize;
     private Dictionary<Vector2, List<Vector2>> directionDict;
-    public static int globalExpandCount = 0;
+
     public int expandCound = 0;
     private List<Rectangle> tunnels = new List<Rectangle>();
     public PlaneObject(int[,] grid, Vector2 position,MovablePlane plane)
@@ -25,117 +26,159 @@ public class PlaneObject
 
     }
 
+    public void InitiateBranching(Hasher hash, List<int[,]> structures, int nodeExpandLength = 25)
+    {
+       
+        List<Vector2> positionsToExpand = new List<Vector2>();
+
+        for (int x = 0; x < gridSize.X; x++)
+        {
+            for (int y = 0; y < gridSize.Y; y++)
+            {
+                if (ObjectGrid[y, x] == 8)
+                {
+                    positionsToExpand.Add(new Vector2(x, y));
+                }
+            }
+        }
+
+        foreach (var position in positionsToExpand)
+        {
+
+            
+            RunExpand(hash, structures, 0, nodeExpandLength);
+            ObjectGrid[Convert.ToInt16(position.Y), Convert.ToInt16(position.X)] = 1;
+            directionDict = getDoorDirections();
+
+
+        }
+    }
+
+
     public void RunExpand(Hasher hash, List<int[,]> structures, int count = 0, int nodeExpandLength = 25)
     {
         if (count > nodeExpandLength)
         {
             return;
         }
-
-        globalExpandCount += 1;
+        
         count += 1;
         int index8 = 0;
-        for (int x = 0; x < gridSize.X; x++)
+        Random rng = hash.random;
+        List<Vector2> shuffledKeys = directionDict.Keys.ToList(); 
+        
+        for (int i = shuffledKeys.Count - 1; i > 0; i--)
         {
-            for (int y = 0; y < gridSize.Y; y++)
+            int j = rng.Next(i + 1);
+ 
+            (shuffledKeys[i], shuffledKeys[j]) = (shuffledKeys[j], shuffledKeys[i]);
+        }
+        foreach (var location in directionDict.Keys)
+        {
+            int x = Convert.ToInt16(location.Y);
+            int y = Convert.ToInt16(location.X);
+            
+            int seed = hash.GetRandomFromCoords(new Vector2(Position.X + x * cellSize,
+                Position.Y + y * cellSize));
+            Random ran = new Random(seed);
+            if (ran.Next(0, 10) != 1)
             {
 
-                if (ObjectGrid[y, x] == 8)
+                int[,] strut = structures[ran.Next(0, structures.Count)];
+
+
+                int structWidth = strut.GetLength(1);
+                int structHeight = strut.GetLength(0);
+
+
+                Vector2 centerOffset = new Vector2(structWidth / 2, structHeight / 2); // (middleX, middleY)
+
+                Vector2 directionOffset;
+
+                try
                 {
-                    int seed = hash.GetRandomFromCoords(new Vector2(Position.X + x * cellSize,
-                        Position.Y + y * cellSize));
-                    Random ran = new Random(seed);
-                    if (ran.Next(0, 10) != 1 || true)
+                    directionOffset = directionDict[new Vector2(y, x)][index8];
+                }
+                catch
+                {
+                    index8 = 0;
+                    directionOffset = directionDict[new Vector2(y, x)][index8];
+
+                }
+
+                index8++;
+                directionOffset = new Vector2(-directionOffset.Y, -directionOffset.X);
+
+
+                Vector2 placementPosition = new Vector2(Position.X + x * cellSize, Position.Y + y * cellSize);
+
+
+                Vector2 adjustedPosition = new Vector2(
+                    placementPosition.X -
+                    centerOffset.X * cellSize, // Offset based on the width of the structure
+                    placementPosition.Y -
+                    centerOffset.Y * cellSize // Offset based on the height of the structure
+                );
+
+                
+
+
+                adjustedPosition += directionOffset * 6 * cellSize;
+                Rectangle arrayBounds2 = new Rectangle(adjustedPosition.X, adjustedPosition.Y,
+                    structWidth * cellSize,
+                    structHeight * cellSize);
+
+                bool isCollide = false;
+                for (int i = 1; i < Plane.Objects.Count; i++)
+                {
+                    PlaneObject obj = Plane.Objects[^i];
+                    Rectangle arrayBounds1 = new Rectangle(obj.Position.X, obj.Position.Y,
+                        obj.ObjectGrid.GetLength(0) * cellSize,
+                        obj.ObjectGrid.GetLength(1) * cellSize);
+                    if (Raylib.CheckCollisionRecs(arrayBounds1, arrayBounds2))
                     {
-
-                        int[,] strut = structures[ran.Next(0, structures.Count)];
-
-
-                        int structWidth = strut.GetLength(1);
-                        int structHeight = strut.GetLength(0);
-
-
-                        Vector2 centerOffset = new Vector2(structWidth / 2, structHeight / 2); // (middleX, middleY)
-
-                        Vector2 directionOffset;
-
-                        try
-                        {
-                            directionOffset = directionDict[new Vector2(y, x)][index8];
-                        }
-                        catch
-                        {
-                            index8 = 0;
-                            directionOffset = directionDict[new Vector2(y, x)][index8];
-
-                        }
-
-                        index8++;
-                        directionOffset = new Vector2(-directionOffset.Y, -directionOffset.X);
-
-
-                        Vector2 placementPosition = new Vector2(Position.X + x * cellSize, Position.Y + y * cellSize);
-
-
-                        Vector2 adjustedPosition = new Vector2(
-                            placementPosition.X -
-                            centerOffset.X * cellSize, // Offset based on the width of the structure
-                            placementPosition.Y -
-                            centerOffset.Y * cellSize // Offset based on the height of the structure
-                        );
-
-                        adjustedPosition += directionOffset * 6 * cellSize;
-                        Rectangle arrayBounds2 = new Rectangle(adjustedPosition.X, adjustedPosition.Y,
-                            structWidth * cellSize,
-                            structHeight * cellSize);
-                        foreach (var obj in Plane.Objects)
-                        {
-                            Rectangle arrayBounds1 = new Rectangle(obj.Position.X, obj.Position.Y,
-                                obj.ObjectGrid.GetLength(0) * cellSize,
-                                obj.ObjectGrid.GetLength(1) * cellSize);
-                            if (Raylib.CheckCollisionRecs(arrayBounds1, arrayBounds2))
-                            {
-                                return;
-                            }
-                        }
-
-                        Rectangle tunnel = DrawBackWardsRect(placementPosition,
-                            new Vector2(5 * cellSize, 5 * cellSize) * directionOffset +
-                            new Vector2(cellSize, cellSize));
-
-
-                        tunnels.Add(tunnel);
-                        
-                        PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
-                        Vector2 newDir = newObj.directionDict.First().Value[0];
-                        newDir = new Vector2(-newDir.Y, -newDir.X);
-                        if (newDir != new Vector2(-directionOffset.X,-directionOffset.Y))
-                        {
-                            if (newDir.X == -directionOffset.Y && newDir.Y == directionOffset.X)
-                            {
-                                newObj.ObjectGrid = RotateGrid90(newObj.ObjectGrid);
-                            }
-                            else if (newDir.X == directionOffset.Y && newDir.Y == -directionOffset.X)
-                            {
-                                newObj.ObjectGrid = RotateGridNegative90(newObj.ObjectGrid);
-                            }
-                            else if (newDir == directionOffset)
-                            {
-                                newObj.ObjectGrid = RotateGrid90(RotateGrid90(newObj.ObjectGrid)); // Rotate twice for 180 degrees
-                            }
-                            
-                            
-                            newObj.directionDict = newObj.getDoorDirections();
-                        }
-
-                        if (newObj.directionDict.Keys.Count != 1)
-                        {
-                            newObj.RunExpand(hash, structures, count, nodeExpandLength);
-                        }
-                        
-                       
+                        isCollide = true;
+                        break;
                     }
-                    
+                }
+
+                if (!isCollide)
+                {
+                    Rectangle tunnel = DrawBackWardsRect(placementPosition,
+                        new Vector2(5 * cellSize, 5 * cellSize) * directionOffset +
+                        new Vector2(cellSize, cellSize));
+
+
+                    tunnels.Add(tunnel);
+
+                    PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
+                    Vector2 newDir = newObj.directionDict.First().Value[0];
+                    newDir = new Vector2(-newDir.Y, -newDir.X);
+                    if (newDir != new Vector2(-directionOffset.X, -directionOffset.Y) )
+                    {
+                        if (newDir.X == -directionOffset.Y && newDir.Y == directionOffset.X)
+                        {
+                            newObj.ObjectGrid = RotateGrid90(newObj.ObjectGrid);
+                        }
+                        else if (newDir.X == directionOffset.Y && newDir.Y == -directionOffset.X)
+                        {
+                            newObj.ObjectGrid = RotateGridNegative90(newObj.ObjectGrid);
+                        }
+                        else if (newDir == directionOffset)
+                        {
+                            newObj.ObjectGrid =
+                                RotateGrid90(RotateGrid90(newObj.ObjectGrid)); // Rotate twice for 180 degrees
+                        }
+
+
+                        newObj.directionDict = newObj.getDoorDirections();
+                    }
+
+                    if (newObj.directionDict.Keys.Count != 1)
+                    {
+                        newObj.RunExpand(hash, structures, count, nodeExpandLength);
+                    }
+
                 }
             }
         }
