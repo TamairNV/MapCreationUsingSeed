@@ -11,8 +11,7 @@ public class PlaneObject
     private int cellSize;
     private Vector2 gridSize;
     private Dictionary<Vector2, List<Vector2>> directionDict;
-
-    public int expandCound = 0;
+    
     private List<Rectangle> tunnels = new List<Rectangle>();
     public PlaneObject(int[,] grid, Vector2 position,MovablePlane plane)
     {
@@ -22,36 +21,8 @@ public class PlaneObject
         cellSize = plane.cellSize;
         gridSize = new Vector2(grid.GetLength(0), grid.GetLength(1));
         plane.Objects.Add(this);
-        directionDict = getDoorDirections();
+        directionDict = GetDoorDirections();
 
-    }
-
-    public void InitiateBranching(Hasher hash, List<int[,]> structures, int nodeExpandLength = 25)
-    {
-       
-        List<Vector2> positionsToExpand = new List<Vector2>();
-
-        for (int x = 0; x < gridSize.X; x++)
-        {
-            for (int y = 0; y < gridSize.Y; y++)
-            {
-                if (ObjectGrid[y, x] == 8)
-                {
-                    positionsToExpand.Add(new Vector2(x, y));
-                }
-            }
-        }
-
-        foreach (var position in positionsToExpand)
-        {
-
-            
-            RunExpand(hash, structures, 0, nodeExpandLength);
-            ObjectGrid[Convert.ToInt16(position.Y), Convert.ToInt16(position.X)] = 1;
-            directionDict = getDoorDirections();
-
-
-        }
     }
 
 
@@ -85,16 +56,10 @@ public class PlaneObject
             {
 
                 int[,] strut = structures[ran.Next(0, structures.Count)];
-
-
                 int structWidth = strut.GetLength(1);
                 int structHeight = strut.GetLength(0);
-
-
                 Vector2 centerOffset = new Vector2(structWidth / 2, structHeight / 2); // (middleX, middleY)
-
                 Vector2 directionOffset;
-
                 try
                 {
                     directionOffset = directionDict[new Vector2(y, x)][index8];
@@ -103,21 +68,18 @@ public class PlaneObject
                 {
                     index8 = 0;
                     directionOffset = directionDict[new Vector2(y, x)][index8];
-
                 }
 
                 index8++;
                 directionOffset = new Vector2(-directionOffset.Y, -directionOffset.X);
-
-
+                
                 Vector2 placementPosition = new Vector2(Position.X + x * cellSize, Position.Y + y * cellSize);
-
-
+                
                 Vector2 adjustedPosition = new Vector2(
                     placementPosition.X -
-                    centerOffset.X * cellSize, // Offset based on the width of the structure
+                    centerOffset.X * cellSize, 
                     placementPosition.Y -
-                    centerOffset.Y * cellSize // Offset based on the height of the structure
+                    centerOffset.Y * cellSize 
                 );
 
                 
@@ -144,35 +106,33 @@ public class PlaneObject
 
                 if (!isCollide)
                 {
-                    Rectangle tunnel = DrawBackWardsRect(placementPosition,
-                        new Vector2(5 * cellSize, 5 * cellSize) * directionOffset +
-                        new Vector2(cellSize, cellSize));
+                    PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);//Create new Object
+                    Vector2 newDir = newObj.directionDict.First().Value[0]; //Get direction of a door on new object
+                    newDir = new Vector2(-newDir.Y, -newDir.X); // reverse cus im silly like that
+                    
+                    newObj.ObjectGrid = RotateGridToAlign(newDir, directionOffset, newObj.ObjectGrid); // rotate the grid so the door is facing the connecting door.
+                    
+                    newObj.directionDict = newObj.GetDoorDirections(); // reset the door positions
 
-
-                    tunnels.Add(tunnel);
-
-                    PlaneObject newObj = new PlaneObject(strut, adjustedPosition, Plane);
-                    Vector2 newDir = newObj.directionDict.First().Value[0];
-                    newDir = new Vector2(-newDir.Y, -newDir.X);
-                    if (newDir != new Vector2(-directionOffset.X, -directionOffset.Y) )
+                    Vector2 closestDoor = GetClosestDoor(newObj, placementPosition);
+                    
+                    Vector2 pos2 = newObj.Position + new Vector2(closestDoor.X,closestDoor.Y) * cellSize;
+                    Vector2 dis = pos2-placementPosition;
+                    dis = new Vector2(Math.Abs(dis.X), Math.Abs(dis.Y)) * directionOffset;
+                    
+                    if (dis.X == 0)
                     {
-                        if (newDir.X == -directionOffset.Y && newDir.Y == directionOffset.X)
-                        {
-                            newObj.ObjectGrid = RotateGrid90(newObj.ObjectGrid);
-                        }
-                        else if (newDir.X == directionOffset.Y && newDir.Y == -directionOffset.X)
-                        {
-                            newObj.ObjectGrid = RotateGridNegative90(newObj.ObjectGrid);
-                        }
-                        else if (newDir == directionOffset)
-                        {
-                            newObj.ObjectGrid =
-                                RotateGrid90(RotateGrid90(newObj.ObjectGrid)); // Rotate twice for 180 degrees
-                        }
-
-
-                        newObj.directionDict = newObj.getDoorDirections();
+                        dis.X = cellSize;
                     }
+
+                    if (dis.Y == 0)
+                    {
+                        dis.Y = cellSize;
+                        
+                    }
+
+                    Rectangle tunnel = DrawBackWardsRect(placementPosition, dis);
+                    tunnels.Add(tunnel);
 
                     if (newObj.directionDict.Keys.Count != 1)
                     {
@@ -183,22 +143,7 @@ public class PlaneObject
             }
         }
     }
-
-    public static void PrintGrid(int[,] grid)
-    {
-        int rows = grid.GetLength(0);
-        int cols = grid.GetLength(1);
-
-        for (int i = 0; i < rows; i++)
-        {
-            for (int j = 0; j < cols; j++)
-            {
-                Console.Write(grid[i, j] + "\t"); // Print each element with a tab space
-            }
-            Console.WriteLine(); // Move to the next line after each row
-        }
-        Console.WriteLine("-------------------------");
-    }
+    
 
 
     private int[,] RotateGrid90(int[,] grid)
@@ -235,6 +180,117 @@ public class PlaneObject
     }
 
 
+
+
+    private Vector2 GetClosestDoor(PlaneObject obj, Vector2 rootPosition)
+    {
+        Vector2 closestDoor = obj.directionDict.First().Value[0];
+        float smallestDistance = 1000000;
+        foreach (var d in obj.directionDict.Keys)
+        {
+            Vector2 door = new Vector2(d.Y, d.X);
+                        
+            float distance = Vector2.Distance( rootPosition , door *cellSize + obj.Position );
+                        
+            if (Math.Abs(distance) < smallestDistance)
+            {
+                smallestDistance = distance;
+                closestDoor = door;
+            }
+        }
+
+        return closestDoor;
+    }
+    private int[,] RotateGridToAlign(Vector2 currentDirection, Vector2 newDirection, int[,] grid)
+    {
+        
+        if (currentDirection != new Vector2(-newDirection.X, -newDirection.Y) )
+        {
+            if (currentDirection.X == -newDirection.Y && currentDirection.Y == newDirection.X)
+            {
+                grid = RotateGrid90(grid);
+            }
+            else if (currentDirection.X == newDirection.Y && currentDirection.Y == -newDirection.X)
+            {
+                grid = RotateGridNegative90(grid);
+            }
+            else if (currentDirection == newDirection)
+            {
+                grid =
+                    RotateGrid90(RotateGrid90(grid)); // Rotate twice for 180 degrees
+            }
+        }
+
+        return grid;
+
+
+    }
+    
+    private Dictionary<Vector2, List<Vector2>> GetDoorDirections()
+    {
+        Dictionary<Vector2, List<Vector2>> directionDict = new Dictionary<Vector2, List<Vector2>>();
+        for (int x = 0; x < gridSize.X; x++)
+        {
+            for (int y = 0; y < gridSize.Y; y++)
+            {
+                if (ObjectGrid[y, x] == 8)
+                {
+                    directionDict.Add(new Vector2(y,x),GetDirection(new Vector2(y,x)));
+                }
+            }
+        }
+
+        return directionDict;
+    }
+
+    private List<Vector2> GetDirection(Vector2 pos)
+    {
+        // Possible movement directions
+        Vector2[] directions = 
+        {
+            new Vector2(0, 1),   // Up
+            new Vector2(0, -1),  // Down
+            new Vector2(1, 0),   // Right
+            new Vector2(-1, 0),  // Left
+        };
+
+        List<Vector2> allowedDirections = new List<Vector2>();
+
+        foreach (var direction in directions)
+        {
+            Vector2 checkPos = pos + direction;
+
+            // Ensure the check position is within bounds
+            if (checkPos.X >= 0 && checkPos.X < gridSize.X &&
+                checkPos.Y >= 0 && checkPos.Y < gridSize.Y)
+            {
+                // If it's a door, add it to allowed directions
+                if (ObjectGrid[(int)checkPos.Y, (int)checkPos.X] == 0) 
+                {
+                    allowedDirections.Add(direction);
+                }
+            }
+        }
+        return allowedDirections;
+    }
+
+
+
+    public static void PrintGrid(int[,] grid)
+    {
+        int rows = grid.GetLength(0);
+        int cols = grid.GetLength(1);
+
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                Console.Write(grid[i, j] + "\t"); // Print each element with a tab space
+            }
+            Console.WriteLine(); // Move to the next line after each row
+        }
+        Console.WriteLine("-------------------------");
+    }
     public static Rectangle DrawBackWardsRect(Vector2 position, Vector2 size)
     {
         Vector2 newPosition = new Vector2();
@@ -262,89 +318,14 @@ public class PlaneObject
 
         return new Rectangle(newPosition, newSize);
     }
-
-    private List<PlaneObject> GetClipedArray(int amount)
-    {
-        int i = 0;
-        List<PlaneObject> clippedList = new List<PlaneObject>();
-        foreach (var obj in Plane.Objects.ToArray().Reverse())
-        {
-
-            clippedList.Add(obj);
-            if (i > amount)
-            {
-                return clippedList;
-            }
-            i++;
-            
-        }
-
-        return clippedList;
-    }
-
-    private Dictionary<Vector2, List<Vector2>> getDoorDirections()
-    {
-        Dictionary<Vector2, List<Vector2>> directionDict = new Dictionary<Vector2, List<Vector2>>();
-        for (int x = 0; x < gridSize.X; x++)
-        {
-            for (int y = 0; y < gridSize.Y; y++)
-            {
-                if (ObjectGrid[y, x] == 8)
-                {
-                    directionDict.Add(new Vector2(y,x),GetDirection(new Vector2(y,x)));
-                }
-            }
-        }
-
-        return directionDict;
-    }
-
-    private List<Vector2> GetDirection(Vector2 pos)
-    {
-        // Define possible movement directions
-        Vector2[] directions = new[]
-        {
-            new Vector2(0, 1),   // Up
-            new Vector2(0, -1),  // Down
-            new Vector2(1, 0),   // Right
-            new Vector2(-1, 0),  // Left
-        };
-
-        List<Vector2> allowedDirections = new List<Vector2>();
-
-        // Check each direction around the given position
-        foreach (var direction in directions)
-        {
-            Vector2 checkPos = pos + direction;
-
-            // Ensure the position is within bounds
-            if (checkPos.X < 0 || checkPos.X >= gridSize.X || checkPos.Y < 0 || checkPos.Y >= gridSize.Y)
-            {
-                continue; // Out of bounds, skip this direction
-            }
-
-            // Check the grid value at the new position
-            if (ObjectGrid[(int)checkPos.Y, (int)checkPos.X] == 0) // Unblocked if the value is 0
-            {
-                allowedDirections.Add(direction); // Add this direction to the list
-            }
-        }
-
-
-        return allowedDirections;
-    }
-
-
-    
-
     public void DrawObject()
     {
         if (ShouldObjectBeDrawn())
         {
             foreach (var tunnel in tunnels)
             {
-                Rectangle temp = new Rectangle(tunnel.Position - Plane.currentPostion, tunnel.Size);
-                Raylib.DrawRectangleRec(temp,Color.Black);
+                Rectangle tunnelRect = new Rectangle(tunnel.Position - Plane.currentPostion, tunnel.Size);
+                Raylib.DrawRectangleRec(tunnelRect,Color.Black);
             }
             for (int x = 0; x < gridSize.X; x++)
             {

@@ -26,6 +26,7 @@ public class Program
             {0,1,0,1,0},
             {0,1,1,1,0}
         });
+        
         structures.Add(new int[,]
         {
             {0,0,0,0,0,0,0},
@@ -48,14 +49,7 @@ public class Program
         });
 
         
-        structures.Add(new int[,]
-        {
-            {0,0,0,0,0},
-            {0,1,8,1,0},
-            {0,8,0,8,0},
-            {0,1,8,1,0},
-            {0,0,0,0,0}
-        });
+        
         structures.Add(new int[,]
         {
             {1,1,8,1,1},
@@ -80,6 +74,7 @@ public class Program
             {1,1,1,1,1,8,1,1,1,1,1},
 
         });
+        
         structures.Add(new int[,]
         {
             {1,1,10,1,1},
@@ -88,28 +83,41 @@ public class Program
             {1,0,0,0,1},
             {1,1,10,1,1}
         });
-        Hasher hasher = new Hasher("banana");
+        
+        
+        Hasher hasher = new Hasher("jfhjsdhf");
         List<string> names = new List<string>() { "1", "2","3","4","5", "6","7","8","9","10","11","12"};
         
         Painter p = new Painter(structures,names,plane);
+        /*
         PlaneObject Oobj = new PlaneObject(new int[,]
         {
             {0,0,0,0,0},
-            {0,4,8,4,0},
+            {0,1,8,1,0},
             {0,8,9,8,0},
-            {0,4,8,4,0},
+            {0,1,1,1,0},
             {0,0,0,0,0}
-        }, new Vector2(300, 300), plane);
-        Oobj.InitiateBranching(hasher,structures,1);
+        }, new Vector2(300, 200), plane);
+        */
+        //Oobj.RunExpand(hasher,structures,0,20);
         int i = 0;
         int t = 0;
         while (!Raylib.WindowShouldClose())
         {
-            if (t % 1 == 0)
+
+
+            if (t % 1 == 0 && i < plane.Objects.Count)
             {
+                
+                plane.Objects[i].RunExpand(hasher,structures,0,0);
                 i += 1;
             }
-            plane.Objects[i].RunExpand(hasher,structures,0,3);
+            t += 1;
+            if (plane.Objects.Count > 0)
+            {
+                
+            }
+            
             
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Blue);
